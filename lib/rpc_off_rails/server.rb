@@ -20,11 +20,21 @@ module RpcOffRails
            raise RpcOffRails::RPCError.new('invalid body')
           end
           req = Request.new(body)
-          op = self.class.cast_request_method(req.method)
-          result = op.(*(req.params || []))
-          Response.new(jsonrpc: req.jsonrpc, id: req.id.to_s, result: result).to_json
+          raise RpcOffRails::RPCError.new('invalid request') unless req.valid?
+          if req.id
+            op = self.class.cast_request_method(req.method)
+            begin
+              result = op.(*(req.params || []))
+              [200, Response.new(jsonrpc: req.jsonrpc, id: req.id.to_s, result: result).to_json]
+            rescue Exception => e
+              [500, { jsonrpc: '2.0', id: nil, error: e.message }.to_json ]
+            end
+          else
+            #defer computation
+            [204, '']
+          end
         rescue RpcOffRails::RPCError => e
-          { jsonrpc: '2.0', id: nil, error: e.message }.to_json
+          [500, { jsonrpc: '2.0', id: nil, error: e.message }.to_json ]
         end
       end
     end
